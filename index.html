@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Master Chief Shooter</title>
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #0b0c1a;
+  font-family: Arial, sans-serif;
+  color: white;
+  user-select: none;
+}
+#gameArea {
+  position: relative;
+  width: 800px;
+  height: 400px;
+  margin: 20px auto;
+  background: linear-gradient(to right, #001122, #003344);
+  border: 3px solid #0af;
+  overflow: hidden;
+}
+#masterChief {
+  position: absolute;
+  bottom: 50px;
+  left: 50px;
+  width: 80px;
+  height: 100px;
+  background: url('https://th.bing.com/th/id/R.3757c4e83d31c10e22b9d9d3237c39cf?rik=XyKI3rRj4NxH2Q&riu=http%3a%2f%2fwww.pngmart.com%2ffiles%2f2%2fMaster-Chief-PNG-HD.png&ehk=OImgWGvjQSHV7pSqLMztIgE1r%2bivB4XPIAHZBcE9bjI%3d&risl=&pid=ImgRaw&r=0') no-repeat center/contain;
+  transition: bottom 0.1s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Barra de vida del jugador */
+#playerHealthBarContainer {
+  position: absolute;
+  bottom: 160px;
+  left: 50px;
+  width: 80px;
+  height: 10px;
+  border: 2px solid #0af;
+  background: #222;
+  border-radius: 5px;
+  z-index: 15;
+}
+#playerHealthBar {
+  width: 100%;
+  height: 100%;
+  background: #0f0;
+  border-radius: 5px;
+  transition: width 0.2s;
+}
+
+/* Barra de vida para enemigos (jefes) */
+.enemyHealthBar {
+  position: absolute;
+  height: 6px;
+  background: red;
+  border-radius: 3px;
+  top: -10px;
+  left: 0;
+}
+
+/* Enemigos */
+.enemy {
+  position: absolute;
+  box-sizing: border-box;
+  background: white;
+}
+.enemy.basic {
+  width: 50px;
+  height: 50px;
+  border: 5px solid red;
+}
+.enemy.fast {
+  width: 35px;
+  height: 35px;
+  border: 4px solid orange;
+}
+.enemy.tank {
+  width: 70px;
+  height: 70px;
+  border: 6px solid blue;
+}
+/* Jefe */
+.enemy.boss {
+  width: 120px;
+  height: 120px;
+  border: 8px solid gold;
+  background: #552200;
+  box-shadow: 0 0 10px 3px gold;
+}
+
+/* Balas */
+.bullet {
+  position: absolute;
+  background: #0af;
+  border-radius: 2px;
+}
+.bullet.pistola {
+  width: 15px;
+  height: 5px;
+}
+.bullet.rifle {
+  width: 25px;
+  height: 6px;
+}
+.bullet.escopeta {
+  width: 12px;
+  height: 5px;
+}
+
+#scoreBoard {
+  text-align: center;
+  font-size: 24px;
+  margin-top: 10px;
+}
+#weaponInfo {
+  text-align: center;
+  font-size: 18px;
+  margin-top: 5px;
+  color: #0af;
+}
+#gameOverScreen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 800px;
+  height: 400px;
+  background: rgba(0,0,0,0.85);
+  color: #0af;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 36px;
+  z-index: 100;
+}
+#gameOverScreen button {
+  margin-top: 20px;
+  font-size: 24px;
+  padding: 10px 20px;
+  cursor: pointer;
+  background: #0af;
+  color: #001122;
+  border: none;
+  border-radius: 6px;
+}
+
+/* Cartel flotante de notificación */
+#notification {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  padding: 20px 40px;
+  background:rgba(0, 0, 0, 0.7);
+  color: #0af;
+  font-size: 24px;
+  border-radius: 10px;
+  z-index: 1000;
+  transition: all 0.5s ease;
+}
+</style>
+</head>
+<body>
+
+<div id="gameArea">
+  <div id="masterChief"></div>
+  <div id="playerHealthBarContainer">
+    <div id="playerHealthBar"></div>
+  </div>
+  <div id="gameOverScreen">
+    <div>¡Game Over!</div>
+    <div id="finalScore"></div>
+    <button onclick="startGame()">Jugar de nuevo</button>
+  </div>
+</div>
+<div id="scoreBoard">Puntaje: 0</div>
+<div id="weaponInfo">Arma: Pistola (1) - Cadencia: 15 - Daño: 10</div>
+<div id="notification"></div>
+
+<script>
+const gameArea = document.getElementById('gameArea');
+const masterChief = document.getElementById('masterChief');
+const scoreBoard = document.getElementById('scoreBoard');
+const weaponInfo = document.getElementById('weaponInfo');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const finalScore = document.getElementById('finalScore');
+const playerHealthBar = document.getElementById('playerHealthBar');
+const notification = document.getElementById('notification');
+
+function showNotification(text) {
+  notification.textContent = text;
+  notification.style.display = 'block';
+  notification.style.opacity = 1;
+
+  setTimeout(() => {
+    notification.style.opacity = 0;
+    setTimeout(() => {
+      notification.style.display = 'none';
+    }, 500);
+  }, 2000);
+}
+
+const gameWidth = 800;
+const gameHeight = 400;
+
+let mcPos = 50;
+let bullets = [];
+let enemies = [];
+let score = 0;
+let gameRunning = false;
+let enemiesKilled = 0;
+let currentWave = 1;
+
+const enemyTypes = [
+  { className: 'basic', speed: 5, points: 10, health: 10 },
+  { className: 'fast', speed: 9, points: 20, health: 7 },
+  { className: 'tank', speed: 3, points: 30, health: 25 }
+];
+
+// Armas
+const weapons = [
+  { name: 'pistola', cooldown: 15, damage: 10, bulletsPerShot: 1, spread: 0 },
+  { name: 'rifle', cooldown: 8, damage: 15, bulletsPerShot: 1, spread: 0 },
+  { name: 'escopeta', cooldown: 25, damage: 8, bulletsPerShot: 3, spread: 10 }
+];
+let currentWeaponIndex = 0;
+let shootCooldown = 0;
+
+let keys = {};
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if(e.code === 'Space') e.preventDefault();
+
+  if(e.code === 'Digit1') { currentWeaponIndex = 0; updateWeaponInfo(); }
+  if(e.code === 'Digit2') { currentWeaponIndex = 1; updateWeaponInfo(); }
+  if(e.code === 'Digit3') { currentWeaponIndex = 2; updateWeaponInfo(); }
+});
+
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+});
+
+// Vida del jugador
+const playerMaxHealth = 100;
+let playerHealth = playerMaxHealth;
+
+function updateWeaponInfo() {
+  const w = weapons[currentWeaponIndex];
+  weaponInfo.textContent = `Arma: ${capitalize(w.name)} (${currentWeaponIndex + 1}) - Cadencia: ${w.cooldown} - Daño: ${w.damage}`;
+
+  function capitalize(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+}
+
+function createEnemy(isBoss = false) {
+  let candidate;
+  if(isBoss) {
+    candidate = { className: 'boss', speed: 2, points: 150, health: 150 };
+  } else {
+    candidate = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+
+  }
+  const e = document.createElement('div');
+  e.classList.add('enemy', candidate.className);
+  e.style.bottom = `${Math.random() * 300 + 20}px`;
+  e.style.left = `${gameWidth}px`;
+  e.dataset.speed = candidate.speed;
+  e.dataset.points = candidate.points;
+  e.dataset.health = candidate.health;
+
+  if(isBoss) {
+    const healthBar = document.createElement('div');
+    healthBar.classList.add('enemyHealthBar');
+    healthBar.style.width = '100%';
+    e.appendChild(healthBar);
+    e.healthBarElement = healthBar;
+  }
+  
+  gameArea.appendChild(e);
+  enemies.push(e);
+}
+
+function createBullet() {
+  const w = weapons[currentWeaponIndex];
+  for (let i = 0; i < w.bulletsPerShot; i++) {
+    const angle = w.spread ? (-w.spread / 2) + i * (w.spread / (w.bulletsPerShot - 1)) : 0;
+    const rad = angle * Math.PI / 180;
+
+    const b = document.createElement('div');
+    b.classList.add('bullet', w.name);
+    b.style.bottom = `${mcPos + 50}px`;
+    b.style.left = '130px';
+
+    b.dataset.speedX = Math.cos(rad) * 15;
+    b.dataset.speedY = Math.sin(rad) * 15;
+    b.dataset.damage = w.damage;
+
+    gameArea.appendChild(b);
+    bullets.push(b);
+  }
+}
+
+function moveMasterChief() {
+  if (keys['ArrowUp']) {
+    mcPos += 7;
+    if (mcPos > 320) mcPos = 320;
+    masterChief.style.bottom = mcPos + 'px';
+    document.getElementById('playerHealthBarContainer').style.bottom = (mcPos + 110) + 'px';
+  }
+  if (keys['ArrowDown']) {
+    mcPos -= 7;
+    if (mcPos < 20) mcPos = 20;
+    masterChief.style.bottom = mcPos + 'px';
+    document.getElementById('playerHealthBarContainer').style.bottom = (mcPos + 110) + 'px';
+  }
+}
+
+function isCollision(a, b) {
+  const rect1 = a.getBoundingClientRect();
+  const rect2 = b.getBoundingClientRect();
+  return !(
+    rect1.top > rect2.bottom ||
+    rect1.bottom < rect2.top ||
+    rect1.right < rect2.left ||
+    rect1.left > rect2.right
+  );
+}
+
+function updateBullets() {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    let left = parseFloat(b.style.left);
+    let bottom = parseFloat(b.style.bottom);
+    left += parseFloat(b.dataset.speedX);
+    bottom += parseFloat(b.dataset.speedY);
+    b.style.left = left + 'px';
+    b.style.bottom = bottom + 'px';
+
+    if (left > gameWidth ||
+        bottom > gameHeight ||
+        bottom < 0) {
+      b.remove();
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const e = enemies[j];
+      if (isCollision(b, e)) {
+        e.dataset.health -= b.dataset.damage;
+        if(e.classList.contains('boss') && e.healthBarElement) {
+          let hpPercent = Math.max(0, e.dataset.health / 150 * 100);
+          e.healthBarElement.style.width = hpPercent + '%';
+        }
+        if (e.dataset.health <= 0) {
+          score += parseInt(e.dataset.points);
+          scoreBoard.textContent = 'Puntaje: ' + score;
+          enemiesKilled++;
+          if(enemiesKilled % 10 === 0) {
+            currentWave++;
+            showNotification(`¡Oleada ${currentWave} en camino!`);
+            createEnemy(true);
+          }
+          e.remove();
+          enemies.splice(j, 1);
+        }
+        b.remove();
+        bullets.splice(i, 1);
+        break;
+      }
+    }
+  }
+}
+
+function updateEnemies() {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    let left = parseFloat(e.style.left);
+    left -= parseFloat(e.dataset.speed);
+    e.style.left = left + 'px';
+
+    if (left < -100) {
+      e.remove();
+      enemies.splice(i, 1);
+      continue;
+    }
+    if (isCollision(e, masterChief)) {
+      const damageToPlayer = 15;
+      playerHealth -= damageToPlayer;
+      updatePlayerHealthBar();
+      e.remove();
+      enemies.splice(i, 1);
+
+      if(playerHealth <= 0) {
+        endGame();
+      }
+    }
+  }
+}
+
+function updatePlayerHealthBar() {
+  let healthPercent = Math.max(0, playerHealth) / playerMaxHealth * 100;
+  playerHealthBar.style.width = healthPercent + '%';
+  if(healthPercent > 60) {
+    playerHealthBar.style.background = '#0f0';
+  } else if(healthPercent > 30) {
+    playerHealthBar.style.background = '#ff0';
+  } else {
+    playerHealthBar.style.background = '#f00';
+  }
+}
+
+function gameLoop() {
+  if (!gameRunning) return;
+
+  moveMasterChief();
+
+  if (keys['Space'] && shootCooldown <= 0) {
+    createBullet();
+    shootCooldown = weapons[currentWeaponIndex].cooldown;
+  }
+  if (shootCooldown > 0) shootCooldown--;
+  
+  updateBullets();
+  updateEnemies();
+
+  // Genera enemigos cuando no están apareciendo jefes
+  const bossExists = enemies.some(e => e.classList.contains('boss'));
+
+  if (!bossExists && Math.random() < 0.02) createEnemy();
+
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  score = 0;
+  scoreBoard.textContent = 'Puntaje: 0';
+  mcPos = 50;
+  masterChief.style.bottom = mcPos + 'px';
+  document.getElementById('playerHealthBarContainer').style.bottom = (mcPos + 110) + 'px';
+
+  enemies.forEach(e => e.remove()); enemies = [];
+
+  bullets.forEach(b => b.remove()); bullets = [];
+
+  playerHealth = playerMaxHealth;
+  updatePlayerHealthBar();
+
+  enemiesKilled = 0;
+  currentWave = 1;
+
+  gameOverScreen.style.display = 'none';
+  gameRunning = true;
+  shootCooldown = 0;
+
+  updateWeaponInfo();
+
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  gameRunning = false;
+  finalScore.textContent = 'Puntaje final: ' + score;
+  gameOverScreen.style.display = 'flex';
+}
+
+startGame();
+
+</script>
+
+</body>
+</html>
